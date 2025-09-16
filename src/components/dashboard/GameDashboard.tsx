@@ -15,6 +15,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { GameLobby } from '@/components/game/GameLobby'
+import { UserProfile } from '@/components/profile/UserProfile'
+import { UserSettings } from '@/components/profile/UserSettings'
 import heroImage from '@/assets/gaming-hero.jpg'
 
 export function GameDashboard() {
@@ -152,15 +154,25 @@ export function GameDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="lobby">Game Lobby</TabsTrigger>
-            <TabsTrigger value="history">Game History</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
             <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
             <TabsTrigger value="vip">VIP Zone</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lobby">
             <GameLobby />
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <UserProfile />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            <UserSettings />
           </TabsContent>
 
           <TabsContent value="history">
