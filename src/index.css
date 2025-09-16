@@ -54,10 +54,61 @@
     --shadow-glow: 0 0 30px hsl(217 91% 60% / 0.3);
     --shadow-gold: 0 0 20px hsl(45 100% 60% / 0.3);
     --shadow-card: 0 8px 32px hsl(220 27% 8% / 0.5);
+    --shadow-neon-green: 0 0 20px hsl(120 100% 60% / 0.4);
+    --shadow-neon-pink: 0 0 20px hsl(320 100% 60% / 0.4);
+    
+    /* Border effects */
+    --border-neon-green: 1px solid hsl(120 100% 60% / 0.6);
+    --border-neon-glow: 2px solid hsl(120 100% 60% / 0.8);
     
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    /* Gaming card effects */
+    --card-gaming: linear-gradient(145deg, hsl(220 23% 11%), hsl(220 17% 17%)) padding-box,
+                    linear-gradient(135deg, hsl(120 100% 60%), hsl(270 95% 75%)) border-box;
+  }
+  
+  /* Gaming card with neon border */
+  .card-neon {
+    background: var(--card-gaming);
+    border: 2px solid transparent;
+    box-shadow: var(--shadow-neon-green), var(--shadow-card);
+    position: relative;
+  }
+  
+  .card-neon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 2px;
+    background: linear-gradient(135deg, hsl(120 100% 60% / 0.8), hsl(270 95% 75% / 0.6));
+    border-radius: inherit;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: xor;
+    -webkit-mask-composite: xor;
+    z-index: -1;
+  }
+  
+  .card-neon:hover {
+    box-shadow: 0 0 30px hsl(120 100% 60% / 0.6), var(--shadow-card);
+    transform: translateY(-2px);
+    transition: var(--transition-smooth);
+  }
+  
+  /* Auth card special styling */
+  .auth-card {
+    background: linear-gradient(145deg, hsl(220 23% 11% / 0.95), hsl(220 17% 17% / 0.95));
+    border: 1px solid hsl(120 100% 60% / 0.4);
+    box-shadow: 0 0 40px hsl(120 100% 60% / 0.2), 0 8px 32px hsl(220 27% 8% / 0.8);
+    backdrop-filter: blur(16px);
+  }
+  
+  .auth-card:hover {
+    border-color: hsl(120 100% 60% / 0.6);
+    box-shadow: 0 0 60px hsl(120 100% 60% / 0.3), 0 8px 32px hsl(220 27% 8% / 0.8);
+    transition: var(--transition-smooth);
 
     --sidebar-background: 0 0% 98%;
 

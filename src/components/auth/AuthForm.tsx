@@ -64,7 +64,7 @@ export function AuthForm() {
           <p className="text-muted-foreground">Enter the ultimate PvP gaming platform</p>
         </div>
 
-        <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+        <Card variant="auth">
           <CardHeader>
             <CardTitle className="text-center flex items-center justify-center gap-2">
               <Zap className="h-5 w-5 text-primary" />

@@ -115,7 +115,7 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card variant="neon" className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <CardTitle className="flex items-center justify-center gap-2">
           <Trophy className="h-5 w-5" />

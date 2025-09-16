@@ -203,7 +203,7 @@ export function GameLobby() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card variant="neon">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5" />
@@ -241,7 +241,7 @@ export function GameLobby() {
 
       <Separator />
 
-      <Card>
+      <Card variant="neon">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -260,7 +260,7 @@ export function GameLobby() {
           ) : (
             <div className="space-y-4">
               {games.map((game) => (
-                <Card key={game.id} className="border-border/50">
+                <Card key={game.id} variant="neon">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">

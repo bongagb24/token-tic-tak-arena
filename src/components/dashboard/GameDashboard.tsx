@@ -78,7 +78,7 @@ export function GameDashboard() {
 
             {/* Player Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+            <Card variant="neon" className="backdrop-blur-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -92,7 +92,7 @@ export function GameDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+              <Card variant="neon" className="backdrop-blur-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -106,7 +106,7 @@ export function GameDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+              <Card variant="neon" className="backdrop-blur-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -120,7 +120,7 @@ export function GameDashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
+              <Card variant="neon" className="backdrop-blur-sm">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
