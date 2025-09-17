@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { X, Circle, Trophy, Coins } from 'lucide-react'
+import { X, Circle, Trophy, Coins, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
@@ -15,16 +15,20 @@ interface TicTacToeProps {
   gameId: string
   betAmount: number
   onGameEnd?: (winner: Player) => void
-  isPlayerOne?: boolean
+  playerNumber?: number
+  opponentName?: string
 }
 
-export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: TicTacToeProps) {
+export function TicTacToe({ gameId, betAmount, onGameEnd, playerNumber = 1, opponentName }: TicTacToeProps) {
   const { profile, refreshProfile } = useAuth()
   const [board, setBoard] = useState<Board>(Array(9).fill(null))
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X')
   const [status, setStatus] = useState<GameStatus>('active')
   const [winner, setWinner] = useState<Player>(null)
-  const playerSymbol = isPlayerOne ? 'X' : 'O'
+  const [timeLeft, setTimeLeft] = useState(30) // 30 seconds per turn
+  const [gameStarted, setGameStarted] = useState(false)
+  const playerSymbol = playerNumber === 1 ? 'X' : 'O'
+  const [gameData, setGameData] = useState<any>(null)
 
   const winningPatterns = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
@@ -44,6 +48,110 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     }
     return null
   }
+
+  // Timer effect
+  useEffect(() => {
+    if (!gameStarted || winner || currentPlayer !== playerSymbol) return
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          // Time's up - opponent wins
+          const opponentSymbol = playerSymbol === 'X' ? 'O' : 'X'
+          setWinner(opponentSymbol)
+          setStatus('completed')
+          onGameEnd?.(opponentSymbol)
+          handleGameCompletion(opponentSymbol)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [gameStarted, winner, currentPlayer, playerSymbol])
+
+  // Reset timer when turn changes
+  useEffect(() => {
+    if (gameStarted && !winner) {
+      setTimeLeft(30)
+    }
+  }, [currentPlayer, gameStarted])
+
+  // Listen for real-time game updates
+  useEffect(() => {
+    if (!gameId) return
+
+    const channel = supabase
+      .channel(`game-${gameId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `id=eq.${gameId}`,
+        },
+        (payload) => {
+          const updatedGame = payload.new
+          if (updatedGame.game_data) {
+            const data = updatedGame.game_data as any
+            if (data.board) {
+              setBoard(data.board)
+              setCurrentPlayer(data.currentPlayer || 'X')
+              setGameStarted(true)
+              
+              const gameWinner = checkWinner(data.board)
+              if (gameWinner) {
+                setWinner(gameWinner)
+                setStatus('completed')
+                onGameEnd?.(gameWinner)
+              }
+            }
+          }
+          
+          if (updatedGame.status === 'active' && !gameStarted) {
+            setGameStarted(true)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [gameId, gameStarted])
+
+  // Initialize game data
+  useEffect(() => {
+    const initializeGame = async () => {
+      try {
+        const { data: game, error } = await supabase
+          .from('games')
+          .select('*')
+          .eq('id', gameId)
+          .single()
+
+        if (error) throw error
+
+        if (game.game_data && game.game_data.board) {
+          const data = game.game_data as any
+          setBoard(data.board)
+          setCurrentPlayer(data.currentPlayer || 'X')
+        }
+
+        if (game.status === 'active') {
+          setGameStarted(true)
+        }
+
+        setGameData(game)
+      } catch (error) {
+        console.error('Error initializing game:', error)
+      }
+    }
+
+    initializeGame()
+  }, [gameId])
 
   const handleGameCompletion = async (gameWinner: Player) => {
     if (!profile) return
@@ -110,7 +218,7 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     }
   }
 
-  const handleCellClick = (index: number) => {
+  const handleCellClick = async (index: number) => {
     if (board[index] || winner || currentPlayer !== playerSymbol) {
       return
     }
@@ -119,14 +227,35 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     newBoard[index] = currentPlayer
     setBoard(newBoard)
 
+    const nextPlayer = currentPlayer === 'X' ? 'O' : 'X'
+    setCurrentPlayer(nextPlayer)
+
+    // Update game data in database
+    try {
+      const { error } = await supabase
+        .from('games')
+        .update({
+          game_data: {
+            board: newBoard,
+            currentPlayer: nextPlayer,
+            lastMove: { player: currentPlayer, position: index, timestamp: new Date().toISOString() }
+          }
+        })
+        .eq('id', gameId)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error updating game:', error)
+      toast.error('Failed to update game')
+      return
+    }
+
     const gameWinner = checkWinner(newBoard)
     if (gameWinner) {
       setWinner(gameWinner)
       setStatus('completed')
       onGameEnd?.(gameWinner)
       handleGameCompletion(gameWinner)
-    } else {
-      setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X')
     }
   }
 
@@ -161,6 +290,7 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
   const getStatusMessage = () => {
     if (winner === 'draw') return "It's a draw!"
     if (winner) return winner === playerSymbol ? 'You won!' : 'You lost!'
+    if (!gameStarted) return 'Waiting for game to start...'
     return currentPlayer === playerSymbol ? 'Your turn' : "Opponent's turn"
   }
 
@@ -168,6 +298,7 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     if (winner === 'draw') return 'secondary'
     if (winner === playerSymbol) return 'default'
     if (winner) return 'destructive'
+    if (!gameStarted) return 'secondary'
     return currentPlayer === playerSymbol ? 'default' : 'secondary'
   }
 
@@ -183,6 +314,17 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
             <Coins className="h-3 w-3" />
             {betAmount} pts
           </Badge>
+          {gameStarted && !winner && (
+            <Badge variant={currentPlayer === playerSymbol ? 'default' : 'secondary'} className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {timeLeft}s
+            </Badge>
+          )}
+          {opponentName && (
+            <Badge variant="outline" className="text-xs">
+              vs {opponentName}
+            </Badge>
+          )}
           <Badge variant={getStatusColor()}>
             {getStatusMessage()}
           </Badge>
@@ -202,6 +344,11 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
               <span className="text-accent">O</span>
             )}
           </span>
+          {opponentName && (
+            <span className="block mt-1">
+              Playing against: <span className="font-semibold">{opponentName}</span>
+            </span>
+          )}
         </div>
         
         {winner && (
@@ -213,7 +360,10 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
               }
             </p>
             <Button 
-              onClick={() => window.location.reload()} 
+              onClick={() => {
+                setCurrentGame(null)
+                window.location.reload()
+              }} 
               size="sm"
               className="w-full"
             >
