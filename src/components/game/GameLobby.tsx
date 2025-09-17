@@ -16,7 +16,6 @@ interface Game {
   bet_amount: number
   status: string
   created_at: string
-  game_data: any
   game_participants: Array<{
     user_id: string
     player_number: number
@@ -33,7 +32,6 @@ export function GameLobby() {
   const [loading, setLoading] = useState(false)
   const [betAmount, setBetAmount] = useState(100)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
-  const [currentGameData, setCurrentGameData] = useState<Game | null>(null)
 
   useEffect(() => {
     fetchGames()
@@ -50,7 +48,6 @@ export function GameLobby() {
           bet_amount,
           status,
           created_at,
-          game_data,
           game_participants (
             user_id,
             player_number
@@ -105,12 +102,7 @@ export function GameLobby() {
         .from('games')
         .insert({
           bet_amount: betAmount,
-          status: 'waiting',
-          game_data: {
-            board: Array(9).fill(null),
-            currentPlayer: 'X',
-            created_by: profile.user_id
-          }
+          status: 'waiting'
         })
         .select()
         .single()
@@ -143,7 +135,6 @@ export function GameLobby() {
 
       toast.success('Game created! Waiting for opponent...')
       setCurrentGame(game.id)
-      setCurrentGameData({ ...game, game_participants: [{ user_id: profile.user_id, player_number: 1, profiles: { username: profile.username, vip_level: profile.vip_level } }] })
       fetchGames()
     } catch (error: any) {
       toast.error(error.message)
@@ -160,25 +151,6 @@ export function GameLobby() {
 
     setLoading(true)
     try {
-      // Get the game data first
-      const { data: gameData, error: gameDataError } = await supabase
-        .from('games')
-        .select(`
-          *,
-          game_participants (
-            user_id,
-            player_number,
-            profiles:user_id (
-              username,
-              vip_level
-            )
-          )
-        `)
-        .eq('id', gameId)
-        .single()
-
-      if (gameDataError) throw gameDataError
-
       // Deduct points using database function
       const { error: pointsError } = await supabase.rpc('deduct_game_points', {
         p_user_id: profile.user_id,
@@ -200,18 +172,10 @@ export function GameLobby() {
 
       if (participantError) throw participantError
 
-      // Update game status to active and initialize game data
+      // Update game status to active
       const { error: gameError } = await supabase
         .from('games')
-        .update({ 
-          status: 'active',
-          game_data: {
-            board: Array(9).fill(null),
-            currentPlayer: 'X',
-            gameStarted: true,
-            startTime: new Date().toISOString()
-          }
-        })
+        .update({ status: 'active' })
         .eq('id', gameId)
 
       if (gameError) throw gameError
@@ -221,7 +185,6 @@ export function GameLobby() {
 
       toast.success('Joined game! Let the battle begin!')
       setCurrentGame(gameId)
-      setCurrentGameData(gameData)
       fetchGames()
     } catch (error: any) {
       toast.error(error.message)
@@ -241,18 +204,11 @@ export function GameLobby() {
   }
 
   if (currentGame) {
-    const playerNumber = currentGameData?.game_participants?.find(p => p.user_id === profile?.user_id)?.player_number || 1
-    const opponent = currentGameData?.game_participants?.find(p => p.user_id !== profile?.user_id)
-    const opponentName = opponent?.profiles?.username || 'Opponent'
-
     return (
       <div className="space-y-4">
         <Button 
           variant="outline" 
-          onClick={() => {
-            setCurrentGame(null)
-            setCurrentGameData(null)
-          }}
+          onClick={() => setCurrentGame(null)}
           className="mb-4"
         >
           ← Back to Lobby
@@ -260,14 +216,10 @@ export function GameLobby() {
         <TicTacToe 
           gameId={currentGame} 
           betAmount={betAmount}
-          playerNumber={playerNumber}
-          opponentName={opponentName}
           onGameEnd={() => {
             setTimeout(() => {
               setCurrentGame(null)
-              setCurrentGameData(null)
               fetchGames()
-              refreshProfile()
             }, 3000)
           }}
         />
@@ -348,9 +300,6 @@ export function GameLobby() {
                           <Coins className="h-3 w-3" />
                           {game.bet_amount} pts
                         </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {game.game_participants.length}/2 Players
-                        </Badge>
                       </div>
                       
                       <div className="flex items-center gap-3">
@@ -367,9 +316,8 @@ export function GameLobby() {
                           onClick={() => joinGame(game.id, game.bet_amount)}
                           disabled={loading || !profile || game.bet_amount > (profile?.points_balance || 0)}
                           size="sm"
-                          className="bg-neon-green/20 hover:bg-neon-green/30 border border-neon-green/50 text-neon-green"
                         >
-                          {loading ? 'Joining...' : 'Challenge!'}
+                          Join Game
                         </Button>
                       </div>
                     </div>
