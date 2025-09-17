@@ -13,7 +13,11 @@ import {
   Settings, 
   LogOut,
   User,
-  Crown
+  Crown,
+  Menu,
+  Home,
+  Trophy,
+  Users
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -37,13 +41,52 @@ export function TopNavBar({ onNavigate }: TopNavBarProps) {
     <nav className="sticky top-0 z-50 w-full border-b border-neon-green/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <Gamepad2 className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              GameArena
-            </h1>
-          </div>
+          {/* Navigation Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2 h-auto p-2 hover:bg-neon-green/10">
+                <Menu className="h-5 w-5 text-primary" />
+                <div className="flex items-center gap-2">
+                  <Gamepad2 className="h-8 w-8 text-primary" />
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                    GameArena
+                  </h1>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56 bg-gaming-dark border-neon-green/20" align="start" forceMount>
+              <DropdownMenuLabel className="text-neon-green">Navigation</DropdownMenuLabel>
+              <DropdownMenuSeparator className="bg-neon-green/20" />
+              <DropdownMenuItem 
+                onClick={() => onNavigate?.('dashboard')}
+                className="cursor-pointer hover:bg-neon-green/10"
+              >
+                <Home className="mr-2 h-4 w-4" />
+                <span>Dashboard</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onNavigate?.('games')}
+                className="cursor-pointer hover:bg-neon-green/10"
+              >
+                <Gamepad2 className="mr-2 h-4 w-4" />
+                <span>Games</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onNavigate?.('leaderboard')}
+                className="cursor-pointer hover:bg-neon-green/10"
+              >
+                <Trophy className="mr-2 h-4 w-4" />
+                <span>Leaderboard</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => onNavigate?.('friends')}
+                className="cursor-pointer hover:bg-neon-green/10"
+              >
+                <Users className="mr-2 h-4 w-4" />
+                <span>Friends</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* User Menu */}
           <div className="flex items-center gap-4">
