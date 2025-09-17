@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { X, Circle, Trophy, Coins } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/integrations/supabase/client'
 
 type Player = 'X' | 'O' | 'draw' | null
 type Board = Player[]
@@ -17,6 +19,7 @@ interface TicTacToeProps {
 }
 
 export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: TicTacToeProps) {
+  const { profile, refreshProfile } = useAuth()
   const [board, setBoard] = useState<Board>(Array(9).fill(null))
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X')
   const [status, setStatus] = useState<GameStatus>('active')
@@ -42,6 +45,71 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     return null
   }
 
+  const handleGameCompletion = async (gameWinner: Player) => {
+    if (!profile) return
+    
+    try {
+      // Update game status to completed
+      const { error: gameError } = await supabase
+        .from('games')
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          winner_id: gameWinner === playerSymbol ? profile.user_id : null
+        })
+        .eq('id', gameId)
+      
+      if (gameError) throw gameError
+
+      // Handle rewards based on game outcome
+      if (gameWinner === playerSymbol) {
+        // Player won - reward double the bet amount
+        const { error: rewardError } = await supabase.rpc('reward_game_points', {
+          p_user_id: profile.user_id,
+          p_game_id: gameId,
+          p_reward_amount: betAmount * 2
+        })
+        if (rewardError) throw rewardError
+        
+        toast.success(`You won ${betAmount * 2} points!`, {
+          icon: <Trophy className="h-4 w-4" />,
+        })
+      } else if (gameWinner === 'draw') {
+        // Draw - refund the bet amount to both players
+        const { error: refundError } = await supabase.rpc('reward_game_points', {
+          p_user_id: profile.user_id,
+          p_game_id: gameId,
+          p_reward_amount: betAmount
+        })
+        if (refundError) throw refundError
+        
+        toast.info('Draw! Your bet has been refunded.', {
+          icon: <Coins className="h-4 w-4" />,
+        })
+      } else {
+        // Player lost - no reward, just update stats
+        const { error: statsError } = await supabase
+          .from('profiles')
+          .update({ 
+            total_games_played: profile.total_games_played + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', profile.user_id)
+        
+        if (statsError) throw statsError
+        
+        toast.error(`You lost ${betAmount} points.`)
+      }
+
+      // Refresh profile to show updated balance
+      await refreshProfile()
+      
+    } catch (error: any) {
+      console.error('Error completing game:', error)
+      toast.error('Failed to complete game: ' + error.message)
+    }
+  }
+
   const handleCellClick = (index: number) => {
     if (board[index] || winner || currentPlayer !== playerSymbol) {
       return
@@ -56,18 +124,7 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
       setWinner(gameWinner)
       setStatus('completed')
       onGameEnd?.(gameWinner)
-      
-      if (gameWinner === playerSymbol) {
-        toast.success(`You won ${betAmount * 2} points!`, {
-          icon: <Trophy className="h-4 w-4" />,
-        })
-      } else if (gameWinner === 'draw') {
-        toast.info('Draw! Your bet has been refunded.', {
-          icon: <Coins className="h-4 w-4" />,
-        })
-      } else {
-        toast.error(`You lost ${betAmount} points.`)
-      }
+      handleGameCompletion(gameWinner)
     } else {
       setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X')
     }

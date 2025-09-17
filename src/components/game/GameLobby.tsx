@@ -27,7 +27,7 @@ interface Game {
 }
 
 export function GameLobby() {
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(false)
   const [betAmount, setBetAmount] = useState(100)
@@ -109,6 +109,16 @@ export function GameLobby() {
 
       if (gameError) throw gameError
 
+      // Deduct points using database function
+      const { error: pointsError } = await supabase.rpc('deduct_game_points', {
+        p_user_id: profile.user_id,
+        p_game_id: game.id,
+        p_bet_amount: betAmount,
+        p_transaction_type: 'game_bet'
+      })
+
+      if (pointsError) throw pointsError
+
       // Join the game as player 1
       const { error: participantError } = await supabase
         .from('game_participants')
@@ -119,6 +129,9 @@ export function GameLobby() {
         })
 
       if (participantError) throw participantError
+
+      // Refresh profile to show updated balance
+      await refreshProfile()
 
       toast.success('Game created! Waiting for opponent...')
       setCurrentGame(game.id)
@@ -138,6 +151,16 @@ export function GameLobby() {
 
     setLoading(true)
     try {
+      // Deduct points using database function
+      const { error: pointsError } = await supabase.rpc('deduct_game_points', {
+        p_user_id: profile.user_id,
+        p_game_id: gameId,
+        p_bet_amount: gameBetAmount,
+        p_transaction_type: 'game_join'
+      })
+
+      if (pointsError) throw pointsError
+
       // Join the game as player 2
       const { error: participantError } = await supabase
         .from('game_participants')
@@ -156,6 +179,9 @@ export function GameLobby() {
         .eq('id', gameId)
 
       if (gameError) throw gameError
+
+      // Refresh profile to show updated balance
+      await refreshProfile()
 
       toast.success('Joined game! Let the battle begin!')
       setCurrentGame(gameId)

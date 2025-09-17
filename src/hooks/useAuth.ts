@@ -54,6 +54,12 @@ export function useAuth() {
     }
   }
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id)
+    }
+  }
+
   const signUp = async (email: string, password: string, username: string) => {
     const { error } = await supabase.auth.signUp({
       email,
@@ -88,5 +94,6 @@ export function useAuth() {
     signUp,
     signIn,
     signOut,
+    refreshProfile,
   }
 }
