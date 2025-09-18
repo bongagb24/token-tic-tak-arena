@@ -8,6 +8,7 @@ import { AuthForm } from "@/components/auth/AuthForm";
 import { GameDashboard } from "@/components/dashboard/GameDashboard";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import LiveGames from "./pages/LiveGames";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function AppContent() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<GameDashboard />} />
+        <Route path="/live-games" element={<LiveGames />} />
         <Route path="/welcome" element={<Index />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -173,6 +173,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      handle_game_loss: {
+        Args: { p_game_id: string; p_user_id: string }
+        Returns: boolean
+      }
       reward_game_points: {
         Args: { p_game_id: string; p_reward_amount: number; p_user_id: string }
         Returns: boolean

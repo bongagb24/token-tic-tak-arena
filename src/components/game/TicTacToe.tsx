@@ -71,11 +71,11 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
         })
         if (rewardError) throw rewardError
         
-        toast.success(`You won ${betAmount * 2} points!`, {
+        toast.success(`🎉 Victory! You won ${betAmount * 2} points!`, {
           icon: <Trophy className="h-4 w-4" />,
         })
       } else if (gameWinner === 'draw') {
-        // Draw - refund the bet amount to both players
+        // Draw - refund the bet amount
         const { error: refundError } = await supabase.rpc('reward_game_points', {
           p_user_id: profile.user_id,
           p_game_id: gameId,
@@ -83,25 +83,21 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
         })
         if (refundError) throw refundError
         
-        toast.info('Draw! Your bet has been refunded.', {
+        toast.info(`🤝 Draw! Your ${betAmount} points have been refunded.`, {
           icon: <Coins className="h-4 w-4" />,
         })
       } else {
-        // Player lost - no reward, just update stats
-        const { error: statsError } = await supabase
-          .from('profiles')
-          .update({ 
-            total_games_played: profile.total_games_played + 1,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', profile.user_id)
+        // Player lost - use loss handler function
+        const { error: lossError } = await supabase.rpc('handle_game_loss', {
+          p_user_id: profile.user_id,
+          p_game_id: gameId
+        })
+        if (lossError) throw lossError
         
-        if (statsError) throw statsError
-        
-        toast.error(`You lost ${betAmount} points.`)
+        toast.error(`💔 Defeat! You lost ${betAmount} points.`)
       }
 
-      // Refresh profile to show updated balance
+      // Refresh profile to show updated balance and stats
       await refreshProfile()
       
     } catch (error: any) {

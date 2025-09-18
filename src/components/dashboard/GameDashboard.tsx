@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -7,10 +8,10 @@ import {
   Coins, 
   TrendingUp, 
   Users, 
-  Star
+  Star,
+  Gamepad2
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { GameLobby } from '@/components/game/GameLobby'
 import { UserProfile } from '@/components/profile/UserProfile'
 import { UserSettings } from '@/components/profile/UserSettings'
 import { TopNavBar } from '@/components/navigation/TopNavBar'
@@ -18,7 +19,7 @@ import heroImage from '@/assets/gaming-hero.jpg'
 
 export function GameDashboard() {
   const { user, profile, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState('lobby')
+  const [activeTab, setActiveTab] = useState('profile')
 
   const getVipLevel = (level: number) => {
     const levels = ['Free Player', 'VIP Bronze', 'VIP Silver', 'VIP Gold']
@@ -128,8 +129,7 @@ export function GameDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8">
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-gaming-dark/50 border border-neon-green/20">
-            <TabsTrigger value="lobby" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">Game Lobby</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 bg-gaming-dark/50 border border-neon-green/20">
             <TabsTrigger value="profile" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">My Account</TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">Settings</TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">History</TabsTrigger>
@@ -138,7 +138,32 @@ export function GameDashboard() {
           </TabsList>
 
           <TabsContent value="lobby">
-            <GameLobby />
+            <Card variant="neon">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gamepad2 className="h-5 w-5" />
+                  Game Center
+                </CardTitle>
+                <CardDescription>
+                  Start playing or create new games
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center py-8">
+                  <Button 
+                    onClick={() => window.location.href = '/live-games'}
+                    size="lg"
+                    className="bg-gradient-to-r from-primary to-accent hover:from-primary/80 hover:to-accent/80"
+                  >
+                    <Gamepad2 className="mr-2 h-5 w-5" />
+                    Enter Live Games Arena
+                  </Button>
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Join live games, create new challenges, and battle other players!
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="profile">

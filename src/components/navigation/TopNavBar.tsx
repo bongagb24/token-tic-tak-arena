@@ -65,11 +65,11 @@ export function TopNavBar({ onNavigate }: TopNavBarProps) {
                 <span>Dashboard</span>
               </DropdownMenuItem>
               <DropdownMenuItem 
-                onClick={() => onNavigate?.('games')}
+                onClick={() => window.location.href = '/live-games'}
                 className="cursor-pointer hover:bg-neon-green/10"
               >
                 <Gamepad2 className="mr-2 h-4 w-4" />
-                <span>Games</span>
+                <span>Live Games</span>
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={() => onNavigate?.('leaderboard')}
