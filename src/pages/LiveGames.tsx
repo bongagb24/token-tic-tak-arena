@@ -31,6 +31,7 @@ export default function LiveGames() {
   const navigate = useNavigate()
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(false)
+  const [joiningGame, setJoiningGame] = useState<string | null>(null)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,7 +96,7 @@ export default function LiveGames() {
       return
     }
 
-    setLoading(true)
+    setJoiningGame(gameId)
     try {
       // Deduct points using database function
       const { error: pointsError } = await supabase.rpc('deduct_game_points', {
@@ -129,13 +130,15 @@ export default function LiveGames() {
       // Refresh profile to show updated balance
       await refreshProfile()
 
-      toast.success('Joined game! Let the battle begin!')
+      toast.success('Game joined! Let\'s play!')
+      
+      // Immediately switch to game view
       setCurrentGame(gameId)
-      fetchGames()
+      
     } catch (error: any) {
-      toast.error(error.message)
+      toast.error(error.message || 'Failed to join game')
     } finally {
-      setLoading(false)
+      setJoiningGame(null)
     }
   }
 
@@ -253,10 +256,10 @@ export default function LiveGames() {
                             
                             <Button
                               onClick={() => joinGame(game.id, game.bet_amount)}
-                              disabled={loading || !profile || game.bet_amount > (profile?.points_balance || 0)}
+                              disabled={joiningGame === game.id || !profile || game.bet_amount > (profile?.points_balance || 0)}
                               size="sm"
                             >
-                              Join Game
+                              {joiningGame === game.id ? 'Joining...' : 'Join Game'}
                             </Button>
                           </div>
                         </div>
