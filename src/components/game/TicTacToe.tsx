@@ -26,6 +26,60 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
   const [winner, setWinner] = useState<Player>(null)
   const playerSymbol = isPlayerOne ? 'X' : 'O'
 
+  // Subscribe to realtime game updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`game-${gameId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `id=eq.${gameId}`
+        },
+        (payload) => {
+          console.log('Realtime game update:', payload)
+          const newGameData = payload.new.game_data as any
+          if (newGameData?.board) {
+            setBoard(newGameData.board)
+            setCurrentPlayer(newGameData.currentPlayer || 'X')
+            
+            // Check if game is completed
+            const gameWinner = checkWinner(newGameData.board)
+            if (gameWinner) {
+              setWinner(gameWinner)
+              setStatus('completed')
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    // Fetch initial game state
+    const fetchGameState = async () => {
+      const { data } = await supabase
+        .from('games')
+        .select('game_data')
+        .eq('id', gameId)
+        .single()
+      
+      if (data?.game_data) {
+        const gameData = data.game_data as any
+        if (gameData.board) {
+          setBoard(gameData.board)
+          setCurrentPlayer(gameData.currentPlayer || 'X')
+        }
+      }
+    }
+
+    fetchGameState()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [gameId])
+
   const winningPatterns = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
     [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
@@ -106,23 +160,47 @@ export function TicTacToe({ gameId, betAmount, onGameEnd, isPlayerOne = true }: 
     }
   }
 
-  const handleCellClick = (index: number) => {
+  const handleCellClick = async (index: number) => {
     if (board[index] || winner || currentPlayer !== playerSymbol) {
       return
     }
 
     const newBoard = [...board]
     newBoard[index] = currentPlayer
-    setBoard(newBoard)
+    const nextPlayer = currentPlayer === 'X' ? 'O' : 'X'
 
-    const gameWinner = checkWinner(newBoard)
-    if (gameWinner) {
-      setWinner(gameWinner)
-      setStatus('completed')
-      onGameEnd?.(gameWinner)
-      handleGameCompletion(gameWinner)
-    } else {
-      setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X')
+    // Update local state immediately for responsiveness
+    setBoard(newBoard)
+    setCurrentPlayer(nextPlayer)
+
+    // Sync to database for multiplayer
+    try {
+      const { error } = await supabase
+        .from('games')
+        .update({
+          game_data: {
+            board: newBoard,
+            currentPlayer: nextPlayer
+          }
+        })
+        .eq('id', gameId)
+
+      if (error) throw error
+
+      // Check for winner
+      const gameWinner = checkWinner(newBoard)
+      if (gameWinner) {
+        setWinner(gameWinner)
+        setStatus('completed')
+        onGameEnd?.(gameWinner)
+        await handleGameCompletion(gameWinner)
+      }
+    } catch (error: any) {
+      console.error('Error updating game:', error)
+      toast.error('Failed to make move: ' + error.message)
+      // Revert local state on error
+      setBoard(board)
+      setCurrentPlayer(currentPlayer)
     }
   }
 
