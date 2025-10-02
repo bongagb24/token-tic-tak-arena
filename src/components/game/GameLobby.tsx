@@ -10,12 +10,15 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { TicTacToe } from './TicTacToe'
+import { Lottery } from './Lottery'
 
 interface Game {
   id: string
   bet_amount: number
   status: string
   created_at: string
+  game_type: string
+  game_data?: any
   game_participants: Array<{
     user_id: string
     player_number: number
@@ -32,6 +35,8 @@ export function GameLobby() {
   const [loading, setLoading] = useState(false)
   const [betAmount, setBetAmount] = useState(100)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
+  const [gameType, setGameType] = useState<'tictactoe' | 'lottery'>('tictactoe')
+  const [minPlayers, setMinPlayers] = useState(3)
 
   useEffect(() => {
     fetchGames()
@@ -48,6 +53,8 @@ export function GameLobby() {
           bet_amount,
           status,
           created_at,
+          game_type,
+          game_data,
           game_participants (
             user_id,
             player_number
@@ -102,7 +109,9 @@ export function GameLobby() {
         .from('games')
         .insert({
           bet_amount: betAmount,
-          status: 'waiting'
+          status: 'waiting',
+          game_type: gameType,
+          game_data: gameType === 'lottery' ? { minPlayers } : {}
         })
         .select()
         .single()
@@ -133,7 +142,10 @@ export function GameLobby() {
       // Refresh profile to show updated balance
       await refreshProfile()
 
-      toast.success('Game created! Waiting for opponent...')
+      const message = gameType === 'lottery' 
+        ? 'Lottery created! Waiting for players...' 
+        : 'Game created! Waiting for opponent...'
+      toast.success(message)
       setCurrentGame(game.id)
       fetchGames()
     } catch (error: any) {
@@ -143,7 +155,7 @@ export function GameLobby() {
     }
   }
 
-  const joinGame = async (gameId: string, gameBetAmount: number) => {
+  const joinGame = async (gameId: string, gameBetAmount: number, gameType: string, currentParticipants: number) => {
     if (!profile || profile.points_balance < gameBetAmount) {
       toast.error('Insufficient points!')
       return
@@ -161,29 +173,34 @@ export function GameLobby() {
 
       if (pointsError) throw pointsError
 
-      // Join the game as player 2
+      // Join the game
       const { error: participantError } = await supabase
         .from('game_participants')
         .insert({
           game_id: gameId,
           user_id: profile.user_id,
-          player_number: 2
+          player_number: gameType === 'lottery' ? currentParticipants + 1 : 2
         })
 
       if (participantError) throw participantError
 
-      // Update game status to active
-      const { error: gameError } = await supabase
-        .from('games')
-        .update({ status: 'active' })
-        .eq('id', gameId)
+      // For Tic-Tac-Toe, update status to active when 2 players join
+      if (gameType === 'tictactoe') {
+        const { error: gameError } = await supabase
+          .from('games')
+          .update({ status: 'active' })
+          .eq('id', gameId)
 
-      if (gameError) throw gameError
+        if (gameError) throw gameError
+      }
 
       // Refresh profile to show updated balance
       await refreshProfile()
 
-      toast.success('Joined game! Let the battle begin!')
+      const message = gameType === 'lottery' 
+        ? 'Ticket purchased! Good luck!' 
+        : 'Joined game! Let the battle begin!'
+      toast.success(message)
       setCurrentGame(gameId)
       fetchGames()
     } catch (error: any) {
@@ -204,6 +221,9 @@ export function GameLobby() {
   }
 
   if (currentGame) {
+    const game = games.find(g => g.id === currentGame)
+    const isLottery = game?.game_type === 'lottery'
+
     return (
       <div className="space-y-4">
         <Button 
@@ -213,16 +233,30 @@ export function GameLobby() {
         >
           ← Back to Lobby
         </Button>
-        <TicTacToe 
-          gameId={currentGame} 
-          betAmount={betAmount}
-          onGameEnd={() => {
-            setTimeout(() => {
-              setCurrentGame(null)
-              fetchGames()
-            }, 3000)
-          }}
-        />
+        {isLottery ? (
+          <Lottery
+            gameId={currentGame}
+            ticketPrice={betAmount}
+            minPlayers={game?.game_data?.minPlayers || 3}
+            onGameEnd={() => {
+              setTimeout(() => {
+                setCurrentGame(null)
+                fetchGames()
+              }, 3000)
+            }}
+          />
+        ) : (
+          <TicTacToe 
+            gameId={currentGame} 
+            betAmount={betAmount}
+            onGameEnd={() => {
+              setTimeout(() => {
+                setCurrentGame(null)
+                fetchGames()
+              }, 3000)
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -236,12 +270,51 @@ export function GameLobby() {
             Create New Game
           </CardTitle>
           <CardDescription>
-            Challenge players to a Tic-Tac-Toe duel
+            Choose your game type and set your stake
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="bet">Bet Amount (Points)</Label>
+            <Label>Game Type</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant={gameType === 'tictactoe' ? 'default' : 'outline'}
+                onClick={() => setGameType('tictactoe')}
+                className="w-full"
+              >
+                Tic-Tac-Toe
+              </Button>
+              <Button
+                variant={gameType === 'lottery' ? 'default' : 'outline'}
+                onClick={() => setGameType('lottery')}
+                className="w-full"
+              >
+                🎰 Lottery
+              </Button>
+            </div>
+          </div>
+
+          {gameType === 'lottery' && (
+            <div className="space-y-2">
+              <Label htmlFor="minPlayers">Minimum Players</Label>
+              <Input
+                id="minPlayers"
+                type="number"
+                value={minPlayers}
+                onChange={(e) => setMinPlayers(Number(e.target.value))}
+                min="2"
+                max="20"
+              />
+              <p className="text-sm text-muted-foreground">
+                Draw happens when this many players join
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="bet">
+              {gameType === 'lottery' ? 'Ticket Price (Points)' : 'Bet Amount (Points)'}
+            </Label>
             <Input
               id="bet"
               type="number"
@@ -260,7 +333,7 @@ export function GameLobby() {
             disabled={loading || !profile || betAmount > (profile?.points_balance || 0)}
             className="w-full"
           >
-            {loading ? 'Creating...' : 'Create Game'}
+            {loading ? 'Creating...' : `Create ${gameType === 'lottery' ? 'Lottery' : 'Game'}`}
           </Button>
         </CardContent>
       </Card>
@@ -285,45 +358,60 @@ export function GameLobby() {
             </div>
           ) : (
             <div className="space-y-4">
-              {games.map((game) => (
-                <Card key={game.id} variant="neon">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(game.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <Badge variant="outline" className="flex items-center gap-1">
-                          <Coins className="h-3 w-3" />
-                          {game.bet_amount} pts
-                        </Badge>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        {game.game_participants[0] && (
+              {games.map((game) => {
+                const isLottery = game.game_type === 'lottery'
+                const minPlayers = game.game_data?.minPlayers || 2
+                const currentPlayers = game.game_participants.length
+
+                return (
+                  <Card key={game.id} variant="neon">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3">
+                          <Badge variant={isLottery ? 'default' : 'secondary'}>
+                            {isLottery ? '🎰 Lottery' : '⭕ Tic-Tac-Toe'}
+                          </Badge>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {game.game_participants[0].profiles.username}
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(game.created_at).toLocaleTimeString()}
                             </span>
-                            {getVipBadge(game.game_participants[0].profiles.vip_level)}
                           </div>
-                        )}
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Coins className="h-3 w-3" />
+                            {game.bet_amount} pts
+                          </Badge>
+                          {isLottery && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {currentPlayers}/{minPlayers}
+                            </Badge>
+                          )}
+                        </div>
                         
-                        <Button
-                          onClick={() => joinGame(game.id, game.bet_amount)}
-                          disabled={loading || !profile || game.bet_amount > (profile?.points_balance || 0)}
-                          size="sm"
-                        >
-                          Join Game
-                        </Button>
+                        <div className="flex items-center gap-3">
+                          {!isLottery && game.game_participants[0] && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">
+                                {game.game_participants[0].profiles.username}
+                              </span>
+                              {getVipBadge(game.game_participants[0].profiles.vip_level)}
+                            </div>
+                          )}
+                          
+                          <Button
+                            onClick={() => joinGame(game.id, game.bet_amount, game.game_type, currentPlayers)}
+                            disabled={loading || !profile || game.bet_amount > (profile?.points_balance || 0)}
+                            size="sm"
+                          >
+                            {isLottery ? 'Buy Ticket' : 'Join Game'}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
         </CardContent>
