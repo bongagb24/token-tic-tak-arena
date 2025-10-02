@@ -3,11 +3,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Users, Clock, Coins, Zap, Trophy, ArrowLeft } from 'lucide-react'
+import { Users, Clock, Coins, Zap, Trophy, ArrowLeft, Ticket } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { TicTacToe } from '@/components/game/TicTacToe'
+import { Lottery } from '@/components/game/Lottery'
 import { useNavigate } from 'react-router-dom'
 import { TopNavBar } from '@/components/navigation/TopNavBar'
 
@@ -16,6 +17,8 @@ interface Game {
   bet_amount: number
   status: string
   created_at: string
+  game_type: string
+  game_data: any
   game_participants: Array<{
     user_id: string
     player_number: number
@@ -49,6 +52,8 @@ export default function LiveGames() {
           bet_amount,
           status,
           created_at,
+          game_type,
+          game_data,
           game_participants (
             user_id,
             player_number
@@ -153,6 +158,7 @@ export default function LiveGames() {
   }
 
   if (currentGame) {
+    const game = games.find(g => g.id === currentGame)
     return (
       <div className="min-h-screen bg-background">
         <TopNavBar />
@@ -165,16 +171,28 @@ export default function LiveGames() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Live Games
           </Button>
-          <TicTacToe 
-            gameId={currentGame} 
-            betAmount={games.find(g => g.id === currentGame)?.bet_amount || 100}
-            onGameEnd={() => {
-              setTimeout(() => {
+          {game?.game_type === 'lottery' ? (
+            <Lottery 
+              gameId={currentGame}
+              ticketPrice={game.bet_amount}
+              minPlayers={game.game_data?.minPlayers || 2}
+              onGameEnd={() => {
                 setCurrentGame(null)
                 fetchGames()
-              }, 3000)
-            }}
-          />
+              }}
+            />
+          ) : (
+            <TicTacToe 
+              gameId={currentGame} 
+              betAmount={game?.bet_amount || 100}
+              onGameEnd={() => {
+                setTimeout(() => {
+                  setCurrentGame(null)
+                  fetchGames()
+                }, 3000)
+              }}
+            />
+          )}
         </div>
       </div>
     )
@@ -232,6 +250,12 @@ export default function LiveGames() {
                         <div className="flex items-center justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
+                              {game.game_type === 'lottery' && (
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Ticket className="h-3 w-3 text-gaming-gold" />
+                                  Lottery
+                                </Badge>
+                              )}
                               <Badge variant="outline" className="flex items-center gap-1">
                                 <Coins className="h-3 w-3" />
                                 {game.bet_amount} pts
@@ -241,11 +265,16 @@ export default function LiveGames() {
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Clock className="h-3 w-3" />
                               {new Date(game.created_at).toLocaleTimeString()}
+                              {game.game_type === 'lottery' && game.game_data?.minPlayers && (
+                                <span className="ml-2">
+                                  ({game.game_participants.length}/{game.game_data.minPlayers} players)
+                                </span>
+                              )}
                             </div>
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            {game.game_participants[0] && (
+                            {game.game_participants[0] && game.game_type !== 'lottery' && (
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium">
                                   {game.game_participants[0].profiles.username}
@@ -259,7 +288,7 @@ export default function LiveGames() {
                               disabled={joiningGame === game.id || !profile || game.bet_amount > (profile?.points_balance || 0)}
                               size="sm"
                             >
-                              {joiningGame === game.id ? 'Joining...' : 'Join Game'}
+                              {joiningGame === game.id ? 'Joining...' : game.game_type === 'lottery' ? 'Buy Ticket' : 'Join Game'}
                             </Button>
                           </div>
                         </div>
@@ -296,14 +325,23 @@ export default function LiveGames() {
                         <div className="flex items-center justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
+                              {game.game_type === 'lottery' && (
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  <Ticket className="h-3 w-3 text-gaming-gold" />
+                                  Lottery
+                                </Badge>
+                              )}
                               <Badge variant="outline" className="flex items-center gap-1">
                                 <Coins className="h-3 w-3" />
-                                {game.bet_amount} pts
+                                {game.game_type === 'lottery' 
+                                  ? `${game.bet_amount * game.game_participants.length} pts pool`
+                                  : `${game.bet_amount} pts`
+                                }
                               </Badge>
                               <Badge variant="default" className="animate-pulse">Active</Badge>
                             </div>
                             <div className="flex items-center gap-4 text-sm">
-                              {game.game_participants.slice(0, 2).map((participant, index) => (
+                              {game.game_participants.slice(0, game.game_type === 'lottery' ? 3 : 2).map((participant, index) => (
                                 <div key={participant.user_id} className="flex items-center gap-1">
                                   <span className="font-medium">
                                     {participant.profiles.username}
@@ -311,6 +349,9 @@ export default function LiveGames() {
                                   {getVipBadge(participant.profiles.vip_level)}
                                 </div>
                               ))}
+                              {game.game_type === 'lottery' && game.game_participants.length > 3 && (
+                                <span className="text-muted-foreground">+{game.game_participants.length - 3} more</span>
+                              )}
                             </div>
                           </div>
                           
@@ -319,7 +360,7 @@ export default function LiveGames() {
                             variant="outline"
                             size="sm"
                           >
-                            Watch Game
+                            {game.game_type === 'lottery' ? 'View Draw' : 'Watch Game'}
                           </Button>
                         </div>
                       </CardContent>
