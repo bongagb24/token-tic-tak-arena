@@ -28,9 +28,12 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
   const [winner, setWinner] = useState<string | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState<number>(0)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
 
   useEffect(() => {
     fetchParticipants()
+    fetchGameData()
 
     // Subscribe to realtime updates
     const channel = supabase
@@ -69,6 +72,73 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
       supabase.removeChannel(channel)
     }
   }, [gameId])
+
+  useEffect(() => {
+    if (!expiresAt) return
+
+    const updateTimer = () => {
+      const now = Date.now()
+      const expiry = new Date(expiresAt).getTime()
+      const remaining = Math.max(0, expiry - now)
+      setTimeRemaining(remaining)
+
+      // Auto-draw or cancel when time expires
+      if (remaining === 0 && !winner && !isDrawing) {
+        if (participants.length >= minPlayers) {
+          drawWinner()
+        } else {
+          cancelLottery()
+        }
+      }
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+
+    return () => clearInterval(interval)
+  }, [expiresAt, winner, isDrawing, participants.length, minPlayers])
+
+  const fetchGameData = async () => {
+    const { data } = await supabase
+      .from('games')
+      .select('game_data')
+      .eq('id', gameId)
+      .single()
+
+    if (data?.game_data) {
+      const gameData = data.game_data as any
+      if (gameData.expiresAt) {
+        setExpiresAt(gameData.expiresAt)
+      }
+    }
+  }
+
+  const cancelLottery = async () => {
+    try {
+      // Refund all participants
+      for (const participant of participants) {
+        await supabase.rpc('reward_game_points', {
+          p_user_id: participant.user_id,
+          p_game_id: gameId,
+          p_reward_amount: ticketPrice
+        })
+      }
+
+      // Mark game as completed
+      await supabase
+        .from('games')
+        .update({ status: 'cancelled' })
+        .eq('id', gameId)
+
+      toast.error('Lottery cancelled - not enough players. Tickets refunded.')
+      
+      setTimeout(() => {
+        onGameEnd?.()
+      }, 3000)
+    } catch (error: any) {
+      toast.error('Failed to cancel lottery: ' + error.message)
+    }
+  }
 
   const fetchParticipants = async () => {
     const { data } = await supabase
@@ -157,8 +227,16 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
   }
 
   const hasJoined = participants.some(p => p.user_id === profile?.user_id)
-  const canDraw = participants.length >= minPlayers && !winner
+  const canDraw = participants.length >= minPlayers && !winner && timeRemaining > 0
   const totalPot = ticketPrice * participants.length
+
+  const formatTime = (ms: number) => {
+    const minutes = Math.floor(ms / 60000)
+    const seconds = Math.floor((ms % 60000) / 1000)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  const isExpired = timeRemaining === 0
 
   return (
     <div className="space-y-6">
@@ -170,8 +248,11 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
             <Ticket className="h-6 w-6 text-gaming-gold" />
             Lottery Draw
           </CardTitle>
-          <CardDescription>
-            Ticket Price: {ticketPrice} points • Minimum Players: {minPlayers}
+          <CardDescription className="flex items-center justify-between">
+            <span>Ticket Price: {ticketPrice} points • Minimum Players: {minPlayers}</span>
+            <span className={`font-mono font-bold ${timeRemaining < 60000 ? 'text-destructive animate-pulse' : 'text-gaming-gold'}`}>
+              ⏱️ {formatTime(timeRemaining)}
+            </span>
           </CardDescription>
         </CardHeader>
 
@@ -246,10 +327,14 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
           {/* Status Info */}
           {!winner && (
             <div className="text-center text-sm text-muted-foreground">
-              {participants.length < minPlayers ? (
+              {isExpired ? (
+                <p className="text-destructive font-semibold">
+                  ⏰ Time expired! {participants.length >= minPlayers ? 'Drawing winner...' : 'Refunding tickets...'}
+                </p>
+              ) : participants.length < minPlayers ? (
                 <p>Waiting for {minPlayers - participants.length} more player(s) to join...</p>
               ) : (
-                <p>Ready to draw! Any participant can trigger the draw.</p>
+                <p>Ready to draw! Any participant can trigger the draw or wait for timer.</p>
               )}
             </div>
           )}

@@ -44,6 +44,36 @@ export function GameLobby() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    // Subscribe to new lottery games for notifications
+    const channel = supabase
+      .channel('lobby-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: 'game_type=eq.lottery'
+        },
+        (payload) => {
+          const newGame = payload.new as any
+          toast.info(`🎰 New lottery available! Ticket: ${newGame.bet_amount} pts`, {
+            duration: 5000,
+            action: {
+              label: 'View',
+              onClick: () => fetchGames()
+            }
+          })
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   const fetchGames = async () => {
     try {
       const { data, error } = await supabase
@@ -104,14 +134,15 @@ export function GameLobby() {
 
     setLoading(true)
     try {
-      // Create game
+      // Create game with expiration time for lottery
+      const expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString() // 20 minutes from now
       const { data: game, error: gameError } = await supabase
         .from('games')
         .insert({
           bet_amount: betAmount,
           status: 'waiting',
           game_type: gameType,
-          game_data: gameType === 'lottery' ? { minPlayers } : {}
+          game_data: gameType === 'lottery' ? { minPlayers, expiresAt } : {}
         })
         .select()
         .single()
