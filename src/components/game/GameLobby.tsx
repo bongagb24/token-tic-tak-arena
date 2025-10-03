@@ -254,6 +254,12 @@ export function GameLobby() {
   if (currentGame) {
     const game = games.find(g => g.id === currentGame)
     const isLottery = game?.game_type === 'lottery'
+    
+    // Determine if current user is player 1
+    const currentUserParticipant = game?.game_participants.find(
+      p => p.user_id === profile?.user_id
+    )
+    const isPlayerOne = currentUserParticipant?.player_number === 1
 
     return (
       <div className="space-y-4">
@@ -280,6 +286,7 @@ export function GameLobby() {
           <TicTacToe 
             gameId={currentGame} 
             betAmount={betAmount}
+            isPlayerOne={isPlayerOne}
             onGameEnd={() => {
               setTimeout(() => {
                 setCurrentGame(null)
