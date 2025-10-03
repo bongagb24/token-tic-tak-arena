@@ -15,11 +15,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { UserProfile } from '@/components/profile/UserProfile'
 import { UserSettings } from '@/components/profile/UserSettings'
 import { TopNavBar } from '@/components/navigation/TopNavBar'
+import { GameLobby } from '@/components/game/GameLobby'
 import heroImage from '@/assets/gaming-hero.jpg'
 
 export function GameDashboard() {
   const { user, profile, signOut } = useAuth()
-  const [activeTab, setActiveTab] = useState('profile')
+  const [activeTab, setActiveTab] = useState('games')
 
   const getVipLevel = (level: number) => {
     const levels = ['Free Player', 'VIP Bronze', 'VIP Silver', 'VIP Gold']
@@ -129,13 +130,21 @@ export function GameDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-8">
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-gaming-dark/50 border border-neon-green/20">
+          <TabsList className="grid w-full grid-cols-6 bg-gaming-dark/50 border border-neon-green/20">
+            <TabsTrigger value="games" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">
+              <Gamepad2 className="h-4 w-4 mr-2" />
+              Games
+            </TabsTrigger>
             <TabsTrigger value="profile" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">My Account</TabsTrigger>
             <TabsTrigger value="settings" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">Settings</TabsTrigger>
             <TabsTrigger value="history" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">History</TabsTrigger>
             <TabsTrigger value="leaderboard" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">Leaderboard</TabsTrigger>
             <TabsTrigger value="vip" className="data-[state=active]:bg-neon-green/20 data-[state=active]:text-neon-green">VIP Zone</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="games">
+            <GameLobby />
+          </TabsContent>
 
           <TabsContent value="lobby">
             <Card variant="neon">
