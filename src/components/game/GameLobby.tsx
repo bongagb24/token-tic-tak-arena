@@ -142,7 +142,7 @@ export function GameLobby() {
           bet_amount: betAmount,
           status: 'waiting',
           game_type: gameType,
-          game_data: gameType === 'lottery' ? { minPlayers, expiresAt } : {}
+          game_data: gameType === 'lottery' ? { minPlayers, expiresAt, totalTickets: 1 } : {}
         })
         .select()
         .single()
@@ -165,7 +165,8 @@ export function GameLobby() {
         .insert({
           game_id: game.id,
           user_id: profile.user_id,
-          player_number: 1
+          player_number: 1,
+          ticket_numbers: gameType === 'lottery' ? [1] : []
         })
 
       if (participantError) throw participantError
@@ -204,13 +205,38 @@ export function GameLobby() {
 
       if (pointsError) throw pointsError
 
+      // Get next ticket number for lottery
+      let nextTicketNumber = 2
+      if (gameType === 'lottery') {
+        const { data: gameData } = await supabase
+          .from('games')
+          .select('game_data')
+          .eq('id', gameId)
+          .single()
+        
+        const currentGameData = gameData?.game_data as any || {}
+        nextTicketNumber = (currentGameData.totalTickets || 1) + 1
+
+        // Update total tickets
+        await supabase
+          .from('games')
+          .update({
+            game_data: {
+              ...currentGameData,
+              totalTickets: nextTicketNumber
+            }
+          })
+          .eq('id', gameId)
+      }
+
       // Join the game
       const { error: participantError } = await supabase
         .from('game_participants')
         .insert({
           game_id: gameId,
           user_id: profile.user_id,
-          player_number: gameType === 'lottery' ? currentParticipants + 1 : 2
+          player_number: gameType === 'lottery' ? currentParticipants + 1 : 2,
+          ticket_numbers: gameType === 'lottery' ? [nextTicketNumber] : []
         })
 
       if (participantError) throw participantError

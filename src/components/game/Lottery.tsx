@@ -16,6 +16,7 @@ interface LotteryProps {
 
 interface Participant {
   user_id: string
+  ticket_numbers: number[]
   profiles: {
     username: string
     vip_level: number
@@ -26,10 +27,12 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
   const { profile, refreshProfile } = useAuth()
   const [participants, setParticipants] = useState<Participant[]>([])
   const [winner, setWinner] = useState<string | null>(null)
+  const [winningTicket, setWinningTicket] = useState<number | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [timeRemaining, setTimeRemaining] = useState<number>(0)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [spinningNumber, setSpinningNumber] = useState<number | null>(null)
 
   useEffect(() => {
     fetchParticipants()
@@ -145,6 +148,7 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
       .from('game_participants')
       .select(`
         user_id,
+        ticket_numbers,
         profiles:user_id (
           username,
           vip_level
@@ -154,6 +158,75 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
 
     if (data) {
       setParticipants(data as any)
+    }
+  }
+
+  const buyTicket = async () => {
+    if (!profile) return
+    
+    setLoading(true)
+    try {
+      // Deduct points
+      const { error: deductError } = await supabase.rpc('deduct_game_points', {
+        p_user_id: profile.user_id,
+        p_game_id: gameId,
+        p_bet_amount: ticketPrice,
+        p_transaction_type: 'game_join'
+      })
+
+      if (deductError) throw deductError
+
+      // Get current game data to determine next ticket number
+      const { data: gameData } = await supabase
+        .from('games')
+        .select('game_data')
+        .eq('id', gameId)
+        .single()
+
+      const currentGameData = gameData?.game_data as any || {}
+      const nextTicketNumber = (currentGameData.totalTickets || 0) + 1
+
+      // Check if user already has tickets
+      const existingParticipant = participants.find(p => p.user_id === profile.user_id)
+
+      if (existingParticipant) {
+        // Update existing participant with new ticket
+        const updatedTickets = [...existingParticipant.ticket_numbers, nextTicketNumber]
+        await supabase
+          .from('game_participants')
+          .update({ ticket_numbers: updatedTickets })
+          .eq('game_id', gameId)
+          .eq('user_id', profile.user_id)
+      } else {
+        // Create new participant
+        await supabase
+          .from('game_participants')
+          .insert({
+            game_id: gameId,
+            user_id: profile.user_id,
+            player_number: participants.length + 1,
+            ticket_numbers: [nextTicketNumber]
+          })
+      }
+
+      // Update game data with new total ticket count
+      await supabase
+        .from('games')
+        .update({
+          game_data: {
+            ...currentGameData,
+            totalTickets: nextTicketNumber
+          }
+        })
+        .eq('id', gameId)
+
+      toast.success(`Ticket #${nextTicketNumber} purchased!`)
+      await refreshProfile()
+      fetchParticipants()
+    } catch (error: any) {
+      toast.error('Failed to buy ticket: ' + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -167,13 +240,51 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
     setLoading(true)
 
     try {
-      // Random winner selection
-      const randomIndex = Math.floor(Math.random() * participants.length)
-      const winnerId = participants[randomIndex].user_id
-      const winnerUsername = participants[randomIndex].profiles.username
+      // Get all tickets
+      const allTickets: Array<{ ticketNumber: number, userId: string, username: string }> = []
+      participants.forEach(participant => {
+        participant.ticket_numbers.forEach(ticketNum => {
+          allTickets.push({
+            ticketNumber: ticketNum,
+            userId: participant.user_id,
+            username: participant.profiles.username
+          })
+        })
+      })
+
+      if (allTickets.length === 0) {
+        toast.error('No tickets available!')
+        return
+      }
+
+      // Spinning animation
+      const spinDuration = 3000
+      const spinInterval = 100
+      const spinStart = Date.now()
+      
+      const spinAnimation = setInterval(() => {
+        const randomTicket = allTickets[Math.floor(Math.random() * allTickets.length)]
+        setSpinningNumber(randomTicket.ticketNumber)
+        
+        if (Date.now() - spinStart > spinDuration) {
+          clearInterval(spinAnimation)
+        }
+      }, spinInterval)
+
+      // Wait for spin animation to complete
+      await new Promise(resolve => setTimeout(resolve, spinDuration))
+
+      // Select winning ticket
+      const winningTicketData = allTickets[Math.floor(Math.random() * allTickets.length)]
+      const winnerId = winningTicketData.userId
+      const winnerUsername = winningTicketData.username
+      const winningTicketNumber = winningTicketData.ticketNumber
+
+      setWinningTicket(winningTicketNumber)
+      setSpinningNumber(null)
 
       // Calculate prize (total pot)
-      const totalPot = ticketPrice * participants.length
+      const totalPot = ticketPrice * allTickets.length
 
       // Update game with winner
       const { error: updateError } = await supabase
@@ -186,7 +297,9 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
             winner: winnerId,
             winnerUsername,
             totalPlayers: participants.length,
-            prizeAmount: totalPot
+            totalTickets: allTickets.length,
+            prizeAmount: totalPot,
+            winningTicket: winningTicketNumber
           }
         })
         .eq('id', gameId)
@@ -213,7 +326,7 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
       }
 
       setWinner(winnerId)
-      toast.success(`🎉 ${winnerUsername} won ${totalPot} points!`)
+      toast.success(`🎉 Ticket #${winningTicketNumber} wins! ${winnerUsername} won ${totalPot} points!`)
 
       setTimeout(() => {
         onGameEnd?.()
@@ -228,7 +341,9 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
 
   const hasJoined = participants.some(p => p.user_id === profile?.user_id)
   const canDraw = participants.length >= minPlayers && !winner && timeRemaining > 0
-  const totalPot = ticketPrice * participants.length
+  const totalTickets = participants.reduce((sum, p) => sum + p.ticket_numbers.length, 0)
+  const totalPot = ticketPrice * totalTickets
+  const userTickets = participants.find(p => p.user_id === profile?.user_id)?.ticket_numbers || []
 
   const formatTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000)
@@ -257,6 +372,14 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
         </CardHeader>
 
         <CardContent className="relative space-y-6">
+          {/* Spinning Number Display */}
+          {isDrawing && spinningNumber && (
+            <div className="text-center p-8 bg-gaming-dark/80 rounded-lg border-2 border-gaming-gold animate-pulse">
+              <p className="text-sm text-muted-foreground mb-2">Drawing Ticket...</p>
+              <p className="text-6xl font-bold text-gaming-gold animate-bounce">#{spinningNumber}</p>
+            </div>
+          )}
+
           {/* Prize Pool */}
           <div className="text-center p-6 bg-gaming-dark/50 rounded-lg border border-gaming-gold/20">
             <p className="text-sm text-muted-foreground mb-2">Total Prize Pool</p>
@@ -265,14 +388,51 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
               <p className="text-4xl font-bold text-gaming-gold">{totalPot}</p>
               <span className="text-muted-foreground">points</span>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">{totalTickets} tickets sold</p>
           </div>
 
+          {/* User's Tickets */}
+          {userTickets.length > 0 && (
+            <div className="p-4 bg-neon-green/10 rounded-lg border border-neon-green/30">
+              <p className="text-sm font-semibold mb-2">Your Tickets:</p>
+              <div className="flex flex-wrap gap-2">
+                {userTickets.map(ticketNum => (
+                  <Badge 
+                    key={ticketNum} 
+                    variant="outline" 
+                    className={`${
+                      ticketNum === winningTicket 
+                        ? 'bg-gaming-gold text-gaming-dark border-gaming-gold' 
+                        : 'border-neon-green text-neon-green'
+                    }`}
+                  >
+                    #{ticketNum}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Buy Ticket Button */}
+          {!winner && !isExpired && (
+            <Button
+              onClick={buyTicket}
+              disabled={loading || !profile}
+              className="w-full bg-neon-green hover:bg-neon-green/90 text-gaming-dark"
+              size="lg"
+            >
+              <Ticket className="mr-2 h-5 w-5" />
+              Buy Ticket ({ticketPrice} points)
+            </Button>
+          )}
+
           {/* Winner Announcement */}
-          {winner && (
+          {winner && winningTicket && (
             <Card className="bg-gradient-to-r from-gaming-gold/20 to-gaming-bronze/20 border-gaming-gold">
               <CardContent className="p-6 text-center">
-                <Trophy className="h-12 w-12 mx-auto mb-4 text-gaming-gold" />
+                <Trophy className="h-12 w-12 mx-auto mb-4 text-gaming-gold animate-bounce" />
                 <h3 className="text-2xl font-bold mb-2">🎉 Winner! 🎉</h3>
+                <div className="text-3xl font-bold text-gaming-gold mb-2">Ticket #{winningTicket}</div>
                 <p className="text-lg">
                   {participants.find(p => p.user_id === winner)?.profiles.username} won {totalPot} points!
                 </p>
@@ -306,18 +466,39 @@ export function Lottery({ gameId, ticketPrice, minPlayers, onGameEnd }: LotteryP
                       <div className="flex items-center gap-2">
                         <Ticket className="h-4 w-4 text-muted-foreground" />
                         <span className="font-medium">{participant.profiles.username}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {participant.ticket_numbers.length} ticket{participant.ticket_numbers.length !== 1 ? 's' : ''}
+                        </Badge>
                       </div>
-                      {participant.profiles.vip_level > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          VIP {participant.profiles.vip_level}
-                        </Badge>
-                      )}
-                      {participant.user_id === winner && (
-                        <Badge className="bg-gaming-gold text-gaming-dark">
-                          WINNER
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {participant.profiles.vip_level > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            VIP {participant.profiles.vip_level}
+                          </Badge>
+                        )}
+                        {participant.user_id === winner && (
+                          <Badge className="bg-gaming-gold text-gaming-dark">
+                            WINNER
+                          </Badge>
+                        )}
+                      </div>
                     </div>
+                    {participant.ticket_numbers.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {participant.ticket_numbers.map(ticketNum => (
+                          <span 
+                            key={ticketNum} 
+                            className={`text-xs px-1.5 py-0.5 rounded ${
+                              ticketNum === winningTicket 
+                                ? 'bg-gaming-gold text-gaming-dark font-bold' 
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            #{ticketNum}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
