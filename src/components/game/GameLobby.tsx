@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { TicTacToe } from './TicTacToe'
 import { Lottery } from './Lottery'
+import { Pokie } from './Pokie'
 
 interface Game {
   id: string
@@ -35,7 +36,7 @@ export function GameLobby() {
   const [loading, setLoading] = useState(false)
   const [betAmount, setBetAmount] = useState(100)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
-  const [gameType, setGameType] = useState<'tictactoe' | 'lottery'>('tictactoe')
+  const [gameType, setGameType] = useState<'tictactoe' | 'lottery' | 'pokie'>('tictactoe')
   const [minPlayers, setMinPlayers] = useState(3)
 
   useEffect(() => {
@@ -308,6 +309,17 @@ export function GameLobby() {
               }, 3000)
             }}
           />
+        ) : game?.game_type === 'pokie' ? (
+          <Pokie
+            gameId={currentGame}
+            betAmount={betAmount}
+            onGameEnd={() => {
+              setTimeout(() => {
+                setCurrentGame(null)
+                fetchGames()
+              }, 3000)
+            }}
+          />
         ) : (
           <TicTacToe 
             gameId={currentGame} 
@@ -340,7 +352,7 @@ export function GameLobby() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Game Type</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 variant={gameType === 'tictactoe' ? 'default' : 'outline'}
                 onClick={() => setGameType('tictactoe')}
@@ -354,6 +366,13 @@ export function GameLobby() {
                 className="w-full"
               >
                 🎰 Lottery
+              </Button>
+              <Button
+                variant={gameType === 'pokie' ? 'default' : 'outline'}
+                onClick={() => setGameType('pokie')}
+                className="w-full"
+              >
+                🎰 Pokie
               </Button>
             </div>
           </div>
@@ -377,7 +396,7 @@ export function GameLobby() {
 
           <div className="space-y-2">
             <Label htmlFor="bet">
-              {gameType === 'lottery' ? 'Ticket Price (Points)' : 'Bet Amount (Points)'}
+              {gameType === 'lottery' ? 'Ticket Price (Points)' : gameType === 'pokie' ? 'Spin Cost (Points)' : 'Bet Amount (Points)'}
             </Label>
             <Input
               id="bet"
@@ -397,7 +416,7 @@ export function GameLobby() {
             disabled={loading || !profile || betAmount > (profile?.points_balance || 0)}
             className="w-full"
           >
-            {loading ? 'Creating...' : `Create ${gameType === 'lottery' ? 'Lottery' : 'Game'}`}
+            {loading ? 'Creating...' : `Create ${gameType === 'lottery' ? 'Lottery' : gameType === 'pokie' ? 'Pokie' : 'Game'}`}
           </Button>
         </CardContent>
       </Card>
@@ -432,8 +451,8 @@ export function GameLobby() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-3">
-                          <Badge variant={isLottery ? 'default' : 'secondary'}>
-                            {isLottery ? '🎰 Lottery' : '⭕ Tic-Tac-Toe'}
+                          <Badge variant={isLottery ? 'default' : game.game_type === 'pokie' ? 'default' : 'secondary'}>
+                            {isLottery ? '🎰 Lottery' : game.game_type === 'pokie' ? '🎰 Pokie' : '⭕ Tic-Tac-Toe'}
                           </Badge>
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />

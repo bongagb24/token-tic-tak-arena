@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { toast } from 'sonner'
 import { TicTacToe } from './TicTacToe'
 import { Lottery } from './Lottery'
+import { Pokie } from './Pokie'
 
 interface Game {
   id: string
@@ -33,7 +34,7 @@ export function GameSwitcher() {
   const [games, setGames] = useState<Game[]>([])
   const [loading, setLoading] = useState(false)
   const [currentGame, setCurrentGame] = useState<string | null>(null)
-  const [selectedGameType, setSelectedGameType] = useState<'tictactoe' | 'lottery'>('tictactoe')
+  const [selectedGameType, setSelectedGameType] = useState<'tictactoe' | 'lottery' | 'pokie'>('tictactoe')
 
   useEffect(() => {
     fetchGames()
@@ -151,7 +152,7 @@ export function GameSwitcher() {
       }
 
       await refreshProfile()
-      toast.success(gameType === 'lottery' ? 'Ticket purchased!' : 'Game joined!')
+      toast.success(gameType === 'lottery' ? 'Ticket purchased!' : gameType === 'pokie' ? 'Pokie ready!' : 'Game joined!')
       setCurrentGame(gameId)
       fetchGames()
     } catch (error: any) {
@@ -199,6 +200,17 @@ export function GameSwitcher() {
               }, 3000)
             }}
           />
+        ) : game?.game_type === 'pokie' ? (
+          <Pokie
+            gameId={currentGame}
+            betAmount={game?.bet_amount || 100}
+            onGameEnd={() => {
+              setTimeout(() => {
+                setCurrentGame(null)
+                fetchGames()
+              }, 3000)
+            }}
+          />
         ) : (
           <TicTacToe 
             gameId={currentGame} 
@@ -218,6 +230,7 @@ export function GameSwitcher() {
 
   const ticTacToeGames = games.filter(g => g.game_type === 'tictactoe')
   const lotteryGames = games.filter(g => g.game_type === 'lottery')
+  const pokieGames = games.filter(g => g.game_type === 'pokie')
 
   return (
     <div className="space-y-6">
@@ -233,12 +246,15 @@ export function GameSwitcher() {
         </CardHeader>
         <CardContent>
           <Tabs value={selectedGameType} onValueChange={(v) => setSelectedGameType(v as any)}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="tictactoe">
                 ⭕ Tic-Tac-Toe
               </TabsTrigger>
               <TabsTrigger value="lottery">
                 🎰 Lottery
+              </TabsTrigger>
+              <TabsTrigger value="pokie">
+                🎰 Pokie
               </TabsTrigger>
             </TabsList>
 
@@ -383,6 +399,65 @@ export function GameSwitcher() {
                       </Card>
                     )
                   })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="pokie" className="space-y-4 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Pokie Machines (4x4)</h3>
+                <Badge variant="secondary">
+                  {pokieGames.length} machines
+                </Badge>
+              </div>
+
+              {pokieGames.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Trophy className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">No active pokie games</p>
+                  <p className="text-sm mt-2">Create one from the dashboard to spin!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pokieGames.map((game) => (
+                    <Card key={game.id} variant="neon" className="hover:bg-accent/5 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-3">
+                              <Badge variant={game.status === 'active' ? 'default' : 'secondary'}>
+                                {game.status === 'active' ? '🎰 Spinning' : '⏳ Ready'}
+                              </Badge>
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Coins className="h-3 w-3" />
+                                {game.bet_amount} pts/spin
+                              </Badge>
+                              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(game.created_at).toLocaleTimeString()}
+                              </span>
+                            </div>
+                            {game.game_participants[0] && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">
+                                  {game.game_participants[0].profiles.username}
+                                </span>
+                                {getVipBadge(game.game_participants[0].profiles.vip_level)}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <Button
+                            onClick={() => setCurrentGame(game.id)}
+                            variant={game.status === 'waiting' ? 'default' : 'outline'}
+                            size="sm"
+                          >
+                            {game.status === 'waiting' ? 'Play' : 'Watch'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </TabsContent>
