@@ -16,6 +16,7 @@ import { UserProfile } from '@/components/profile/UserProfile'
 import { UserSettings } from '@/components/profile/UserSettings'
 import { TopNavBar } from '@/components/navigation/TopNavBar'
 import { GameLobby } from '@/components/game/GameLobby'
+import { GameSwitcher } from '@/components/game/GameSwitcher'
 import heroImage from '@/assets/gaming-hero.jpg'
 
 export function GameDashboard() {
@@ -143,7 +144,14 @@ export function GameDashboard() {
           </TabsList>
 
           <TabsContent value="games">
-            <GameLobby />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <GameSwitcher />
+              </div>
+              <div>
+                <GameLobby />
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="lobby">
